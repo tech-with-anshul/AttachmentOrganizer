@@ -1,0 +1,59 @@
+You are an expert Python architect. Please generate a complete, production‑ready project named
+“FaceAttendance” that lets a small office (≤ 50 employees) mark attendance automatically with
+a webcam. Requirements:
+
+────────────────────
+🛠  TECH STACK
+────────────────────
+• Python 3.11  
+• OpenCV‑Python for real‑time video capture & face detection  
+• face_recognition (dlib) for facial embeddings & matching  
+• SQLite for lightweight storage (switchable to PostgreSQL)  
+• Flask REST API + simple HTML/JS dashboard for admin views  
+• dotenv for config, logging via logging module  
+• Optional: Twilio or WhatsApp Cloud API to notify admin when an unknown face appears
+
+────────────────────
+🎯  FEATURES
+────────────────────
+1. **Employee Enrollment**
+   - CLI & web route to add new employee with name, email, and 3+ reference photos
+   - Store embeddings in `employees` table
+
+2. **Real‑Time Recognition Loop**
+   - Start webcam (default 0) or RTSP stream
+   - For every frame → detect faces → compare embeddings  
+   - Threshold 0.6; adjustable in `.env`
+
+3. **Attendance Logging**
+   - On first match today, write record to `attendance` table with
+     `id, employee_id, timestamp, image_path`
+   - Prevent duplicate logs within configurable “cool‑down” (e.g., 2 min)
+
+4. **Dashboard**
+   - `/dashboard` shows today’s status (Present, Absent, Late) in a table
+   - Filters: date range, employee
+   - Button to export CSV
+
+5. **Notifications (opt‑in)**
+   - If face is **unknown** or fails to match after 3 attempts → send
+     alert to admin via chosen channel
+
+6. **Security & Performance**
+   - Mask or blur faces in stored snapshots to comply with privacy if `BLUR=true`
+   - Run in virtual env, pin dependencies in `requirements.txt`
+   - Use multiprocessing or threading to keep FPS ≥ 15
+
+────────────────────
+📁  DELIVERABLES
+────────────────────
+1. `README.md`: setup, run, usage GIF  
+2. `requirements.txt`  
+3. `src/` with:
+   • `app.py` (Flask)  
+   • `recognition.py` (OpenCV loop)  
+   • `database.py` (SQLAlchemy models)  
+   • `notifier.py` (Twilio/WhatsApp integration)  
+   • `utils/` (image helpers, config loader)  
+4. `.env.example` with placeholders  
+5. `tests/` using pytest (mock camera stream)
