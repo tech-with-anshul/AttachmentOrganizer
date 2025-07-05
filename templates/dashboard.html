@@ -347,7 +347,30 @@ function viewAttendanceImage(imagePath) {
     modal.show();
 }
 
-// Update recognition status periodically
+// Check recognition status
+function checkRecognitionStatus() {
+    fetch('/api/recognition/status')
+        .then(response => response.json())
+        .then(data => {
+            const statusCard = document.getElementById('recognition-status-card');
+            if (data.is_running) {
+                statusCard.textContent = 'Running';
+                statusCard.className = 'mb-0 text-success';
+            } else {
+                statusCard.textContent = 'Stopped';
+                statusCard.className = 'mb-0 text-danger';
+            }
+        })
+        .catch(error => {
+            console.error('Error checking recognition status:', error);
+            const statusCard = document.getElementById('recognition-status-card');
+            statusCard.textContent = 'Error';
+            statusCard.className = 'mb-0 text-danger';
+        });
+}
+
+// Initialize and update recognition status periodically
+checkRecognitionStatus();
 setInterval(checkRecognitionStatus, 30000); // Check every 30 seconds
 </script>
 {% endblock %}

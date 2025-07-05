@@ -107,6 +107,9 @@ This is a modern, production-ready face recognition attendance system designed f
 
 ## Changelog
 - July 05, 2025. Initial setup
+- July 05, 2025. Created minimal version of app without CV dependencies
+- July 05, 2025. Fixed JavaScript errors in dashboard
+- July 05, 2025. Prepared project for GitHub push with comprehensive documentation
 
 ## User Preferences
 
