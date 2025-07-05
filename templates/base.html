@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Face Attendance System{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i data-feather="camera" class="me-2"></i>
+                Face Attendance System
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i data-feather="home" class="me-1"></i>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'employees' %}active{% endif %}" href="{{ url_for('employees') }}">
+                            <i data-feather="users" class="me-1"></i>
+                            Employees
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <button class="btn btn-outline-secondary" id="recognition-toggle">
+                            <i data-feather="play" class="me-1"></i>
+                            <span id="recognition-status">Start Recognition</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="bg-dark text-light py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Face Attendance System</h5>
+                    <p class="text-muted">Automated attendance tracking using face recognition technology.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-muted">
+                        &copy; 2025 Face Attendance System. All rights reserved.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    
+    <script>
+        // Initialize Feather Icons
+        feather.replace();
+        
+        // Recognition system toggle
+        document.getElementById('recognition-toggle').addEventListener('click', function() {
+            toggleRecognitionSystem();
+        });
+        
+        // Check recognition status on page load
+        checkRecognitionStatus();
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

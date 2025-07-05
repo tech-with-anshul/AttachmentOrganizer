@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Face Attendance System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i data-feather="bar-chart-2" class="me-2"></i>
+                Dashboard
+            </h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" onclick="exportAttendance()">
+                    <i data-feather="download" class="me-1"></i>
+                    Export CSV
+                </button>
+                <button class="btn btn-outline-secondary" onclick="refreshDashboard()">
+                    <i data-feather="refresh-cw" class="me-1"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Total Employees</h5>
+                        <h2 class="mb-0">{{ total_employees }}</h2>
+                    </div>
+                    <i data-feather="users" class="text-white-50" style="width: 48px; height: 48px;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Present Today</h5>
+                        <h2 class="mb-0">{{ present_count }}</h2>
+                    </div>
+                    <i data-feather="check-circle" class="text-white-50" style="width: 48px; height: 48px;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Absent Today</h5>
+                        <h2 class="mb-0">{{ total_employees - present_count }}</h2>
+                    </div>
+                    <i data-feather="x-circle" class="text-white-50" style="width: 48px; height: 48px;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Recognition Status</h5>
+                        <h6 class="mb-0" id="recognition-status-card">Checking...</h6>
+                    </div>
+                    <i data-feather="camera" class="text-white-50" style="width: 48px; height: 48px;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="filter" class="me-2"></i>
+                    Filters
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="filter-form" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="start-date" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="start-date" value="{{ today }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="end-date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="end-date" value="{{ today }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="employee-filter" class="form-label">Employee</label>
+                        <select class="form-select" id="employee-filter">
+                            <option value="">All Employees</option>
+                            {% for summary in attendance_summary %}
+                                <option value="{{ summary.employee.id }}">{{ summary.employee.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                                <i data-feather="search" class="me-1"></i>
+                                Apply
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">
+                                <i data-feather="x" class="me-1"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="list" class="me-2"></i>
+                    Today's Attendance - {{ today }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Time In</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendance-table-body">
+                            {% for summary in attendance_summary %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-placeholder me-2">
+                                            <i data-feather="user"></i>
+                                        </div>
+                                        <strong>{{ summary.employee.name }}</strong>
+                                    </div>
+                                </td>
+                                <td>{{ summary.employee.email }}</td>
+                                <td>
+                                    {% if summary.status == 'Present' %}
+                                        <span class="badge bg-success">
+                                            <i data-feather="check-circle" class="me-1" style="width: 12px; height: 12px;"></i>
+                                            Present
+                                        </span>
+                                    {% elif summary.status == 'Late' %}
+                                        <span class="badge bg-warning">
+                                            <i data-feather="clock" class="me-1" style="width: 12px; height: 12px;"></i>
+                                            Late
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i data-feather="x-circle" class="me-1" style="width: 12px; height: 12px;"></i>
+                                            Absent
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ summary.time_in }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                onclick="viewEmployeeHistory({{ summary.employee.id }})"
+                                                title="View History">
+                                            <i data-feather="eye" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        {% if summary.attendance_record and summary.attendance_record.image_path %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                onclick="viewAttendanceImage('{{ summary.attendance_record.image_path }}')"
+                                                title="View Image">
+                                            <i data-feather="image" style="width: 14px; height: 14px;"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Chart -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="trending-up" class="me-2"></i>
+                    Attendance Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="attendanceChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Employee History -->
+<div class="modal fade" id="employeeHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="clock" class="me-2"></i>
+                    Employee Attendance History
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="employee-history-content">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Attendance Image -->
+<div class="modal fade" id="attendanceImageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-feather="image" class="me-2"></i>
+                    Attendance Image
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="attendance-image" src="" class="img-fluid" alt="Attendance Image">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize attendance chart
+const ctx = document.getElementById('attendanceChart').getContext('2d');
+const attendanceChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Present', 'Absent'],
+        datasets: [{
+            data: [{{ present_count }}, {{ total_employees - present_count }}],
+            backgroundColor: [
+                'rgba(34, 197, 94, 0.8)',
+                'rgba(239, 68, 68, 0.8)'
+            ],
+            borderColor: [
+                'rgba(34, 197, 94, 1)',
+                'rgba(239, 68, 68, 1)'
+            ],
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Functions
+function refreshDashboard() {
+    window.location.reload();
+}
+
+function applyFilters() {
+    // This would typically make an AJAX request to filter data
+    console.log('Applying filters...');
+}
+
+function resetFilters() {
+    document.getElementById('filter-form').reset();
+    document.getElementById('start-date').value = '{{ today }}';
+    document.getElementById('end-date').value = '{{ today }}';
+}
+
+function exportAttendance() {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const employeeId = document.getElementById('employee-filter').value;
+    
+    let url = '/api/attendance/export?';
+    const params = new URLSearchParams();
+    
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (employeeId) params.append('employee_id', employeeId);
+    
+    url += params.toString();
+    window.open(url, '_blank');
+}
+
+function viewEmployeeHistory(employeeId) {
+    // Show modal and load employee history
+    const modal = new bootstrap.Modal(document.getElementById('employeeHistoryModal'));
+    modal.show();
+    
+    // Load history data (would typically be an AJAX call)
+    document.getElementById('employee-history-content').innerHTML = '<p>Loading employee history...</p>';
+}
+
+function viewAttendanceImage(imagePath) {
+    const modal = new bootstrap.Modal(document.getElementById('attendanceImageModal'));
+    document.getElementById('attendance-image').src = imagePath;
+    modal.show();
+}
+
+// Update recognition status periodically
+setInterval(checkRecognitionStatus, 30000); // Check every 30 seconds
+</script>
+{% endblock %}
