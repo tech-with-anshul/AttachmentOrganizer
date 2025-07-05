@@ -1,5 +1,11 @@
 from datetime import datetime
-from app import db
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
+
+class Base(DeclarativeBase):
+    pass
+
+db = SQLAlchemy(model_class=Base)
 
 class Employee(db.Model):
     """Employee model for storing employee information and face embeddings"""
@@ -26,7 +32,7 @@ class Attendance(db.Model):
     confidence = db.Column(db.Float)  # Recognition confidence score
     
     def __repr__(self):
-        return f'<Attendance {self.employee.name} at {self.timestamp}>'
+        return f'<Attendance for employee {self.employee_id} at {self.timestamp}>'
 
 class UnknownFace(db.Model):
     """Model for storing unknown face detections"""

@@ -8,17 +8,23 @@ import os
 import sys
 import argparse
 import json
-import face_recognition
-from PIL import Image
 import cv2
 import numpy as np
 
 # Add the parent directory to the path to import our modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import app, db
-from models import Employee, Attendance
-from utils import save_employee_images
+from app import app
+from models import db, Employee, Attendance
+
+# Try to import face recognition modules
+try:
+    import face_recognition
+    from PIL import Image
+    FACE_RECOGNITION_AVAILABLE = True
+except ImportError:
+    FACE_RECOGNITION_AVAILABLE = False
+    print("Warning: Face recognition modules not available. Some features will be limited.")
 
 def add_employee(name, email, photo_paths):
     """Add a new employee with face recognition data"""
@@ -29,6 +35,18 @@ def add_employee(name, email, photo_paths):
             if existing:
                 print(f"Error: Employee with email {email} already exists")
                 return False
+            
+            if not FACE_RECOGNITION_AVAILABLE:
+                # Create employee without face recognition
+                employee = Employee(
+                    name=name,
+                    email=email,
+                    photo_paths=json.dumps(photo_paths)
+                )
+                db.session.add(employee)
+                db.session.commit()
+                print(f"✓ Employee {name} added successfully (without face recognition)")
+                return True
             
             # Process photos and generate embeddings
             embeddings = []

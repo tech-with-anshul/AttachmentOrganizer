@@ -4,19 +4,10 @@ import threading
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, send_file, flash, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
-import cv2
-import face_recognition
-import numpy as np
 import csv
 import io
-from models import Employee, Attendance
-from recognition import FaceRecognitionSystem
-from notifier import NotificationService
-from config import Config
-from utils import blur_face, save_employee_images
 import json
 
 # Configure logging
@@ -26,10 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
+# Import models first to set up the database
+from models import db, Employee, Attendance, UnknownFace
 
 # Create the app
 app = Flask(__name__)
@@ -53,19 +42,39 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "employees"), exist_ok=True)
 os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "attendance"), exist_ok=True)
 
-# Initialize configuration
-config = Config()
+# Initialize configuration and services
+try:
+    from config import Config
+    config = Config()
+except ImportError:
+    logger.warning("Config module not available, using defaults")
+    config = None
 
-# Initialize notification service
-notification_service = NotificationService()
+try:
+    from notifier import NotificationService
+    notification_service = NotificationService()
+except ImportError:
+    logger.warning("Notification service not available")
+    notification_service = None
 
 # Initialize face recognition system
 face_recognition_system = None
 recognition_thread = None
 
+# Try to import face recognition modules
+try:
+    import cv2
+    import face_recognition
+    import numpy as np
+    from recognition import FaceRecognitionSystem
+    from utils import blur_face, save_employee_images
+    FACE_RECOGNITION_AVAILABLE = True
+    logger.info("Face recognition modules loaded successfully")
+except ImportError as e:
+    FACE_RECOGNITION_AVAILABLE = False
+    logger.warning(f"Face recognition modules not available: {e}")
+
 with app.app_context():
-    # Import models to ensure tables are created
-    from models import Employee, Attendance
     db.create_all()
 
 @app.route('/')
@@ -174,41 +183,59 @@ def upload_employee_photos(employee_id):
             return jsonify({'error': 'At least 3 photos are required'}), 400
         
         # Process and save photos
-        embeddings = []
         saved_files = []
         
-        for i, photo in enumerate(photos):
-            if photo.filename == '':
-                continue
+        if FACE_RECOGNITION_AVAILABLE:
+            embeddings = []
+            
+            for i, photo in enumerate(photos):
+                if photo.filename == '':
+                    continue
+                    
+                # Save the uploaded file
+                filename = secure_filename(f"{employee.name}_{i+1}_{photo.filename}")
+                filepath = os.path.join(app.config["UPLOAD_FOLDER"], "employees", filename)
+                photo.save(filepath)
+                saved_files.append(filepath)
                 
-            # Save the uploaded file
-            filename = secure_filename(f"{employee.name}_{i+1}_{photo.filename}")
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], "employees", filename)
-            photo.save(filepath)
-            saved_files.append(filepath)
+                # Generate face embedding
+                image = face_recognition.load_image_file(filepath)
+                face_encodings = face_recognition.face_encodings(image)
+                
+                if face_encodings:
+                    embeddings.append(face_encodings[0].tolist())
+                else:
+                    # Clean up uploaded files if face not found
+                    for file in saved_files:
+                        if os.path.exists(file):
+                            os.remove(file)
+                    return jsonify({'error': f'No face found in photo {i+1}'}), 400
             
-            # Generate face embedding
-            image = face_recognition.load_image_file(filepath)
-            face_encodings = face_recognition.face_encodings(image)
+            # Store embeddings in database
+            employee.face_embeddings = json.dumps(embeddings)
+            employee.photo_paths = json.dumps(saved_files)
+            db.session.commit()
             
-            if face_encodings:
-                embeddings.append(face_encodings[0].tolist())
-            else:
-                # Clean up uploaded files if face not found
-                for file in saved_files:
-                    if os.path.exists(file):
-                        os.remove(file)
-                return jsonify({'error': f'No face found in photo {i+1}'}), 400
-        
-        # Store embeddings in database
-        employee.face_embeddings = json.dumps(embeddings)
-        employee.photo_paths = json.dumps(saved_files)
-        db.session.commit()
-        
-        # Restart recognition system to reload embeddings
-        restart_recognition_system()
-        
-        return jsonify({'message': 'Photos uploaded and processed successfully'}), 200
+            # Restart recognition system to reload embeddings
+            restart_recognition_system()
+            
+            return jsonify({'message': 'Photos uploaded and processed successfully'}), 200
+        else:
+            # Save photos without face recognition processing
+            for i, photo in enumerate(photos):
+                if photo.filename == '':
+                    continue
+                    
+                filename = secure_filename(f"{employee.name}_{i+1}_{photo.filename}")
+                filepath = os.path.join(app.config["UPLOAD_FOLDER"], "employees", filename)
+                photo.save(filepath)
+                saved_files.append(filepath)
+            
+            # Store paths in database
+            employee.photo_paths = json.dumps(saved_files)
+            db.session.commit()
+            
+            return jsonify({'message': 'Photos uploaded successfully. Face recognition will be enabled once computer vision is set up.'}), 200
         
     except Exception as e:
         logger.error(f"Error uploading photos: {str(e)}")
@@ -306,6 +333,9 @@ def export_attendance():
 def start_recognition():
     """Start the face recognition system"""
     try:
+        if not FACE_RECOGNITION_AVAILABLE:
+            return jsonify({'message': 'Face recognition system is not available. Computer vision dependencies need to be installed.'}), 200
+        
         global face_recognition_system, recognition_thread
         
         if face_recognition_system and face_recognition_system.is_running:
@@ -342,6 +372,12 @@ def stop_recognition():
 def recognition_status():
     """Get the status of the face recognition system"""
     try:
+        if not FACE_RECOGNITION_AVAILABLE:
+            return jsonify({
+                'is_running': False,
+                'message': 'Face recognition system is not available. Install OpenCV and face_recognition to enable.'
+            })
+        
         is_running = face_recognition_system and face_recognition_system.is_running
         return jsonify({
             'is_running': is_running,
@@ -353,6 +389,9 @@ def recognition_status():
 
 def restart_recognition_system():
     """Restart the recognition system to reload employee data"""
+    if not FACE_RECOGNITION_AVAILABLE:
+        return
+    
     global face_recognition_system, recognition_thread
     
     try:
